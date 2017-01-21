@@ -1,8 +1,7 @@
 package mapreduce
 
 import (
-    //"fmt"
-	"hash/fnv"
+    "hash/fnv"
     "log"
     "os"
     "encoding/json"
