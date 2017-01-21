@@ -47,10 +47,10 @@ func doReduce(
             if err != nil {
                 break
             }
-            _, ok := kvMap[kv.Key]
-            if !ok {
-                kvMap[kv.Key] = make([]string, 0)
-            }
+//            _, ok := kvMap[kv.Key]
+//            if !ok {
+//                kvMap[kv.Key] = make([]string, 0)
+//            }
             kvMap[kv.Key] = append(kvMap[kv.Key], kv.Value)
         }
         infile.Close()
