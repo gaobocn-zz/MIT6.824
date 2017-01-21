@@ -24,5 +24,20 @@ func (mr *Master) schedule(phase jobPhase) {
 	//
 	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//
+    nfinished := 0
+    for nfinished < ntasks {
+        select {
+        case wname := <-mr.registerChannel:
+            doTaskArgs := &DoTaskArgs{JobName: mr.jobName, File: mr.files[nfinished],
+                Phase: phase, TaskNumber: nfinished, NumOtherPhase: nios}
+            nfinished++
+            go func() { // in fact main can exit before this, so we should probabily use waitgroup
+                ok := call(wname, "Worker.DoTask", doTaskArgs, new(struct{}))
+                if ok {
+                    mr.registerChannel <- wname
+                }
+            }()
+        }
+    }
 	fmt.Printf("Schedule: %v phase done\n", phase)
 }
