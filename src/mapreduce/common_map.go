@@ -1,7 +1,12 @@
 package mapreduce
 
 import (
+    "fmt"
 	"hash/fnv"
+    "log"
+    "os"
+    "encoding/json"
+    "io/ioutil"
 )
 
 // doMap does the job of a map worker: it reads one of the input files
@@ -40,6 +45,33 @@ func doMap(
 	//     err := enc.Encode(&kv)
 	//
 	// Remember to close the file after you have written all the values!
+    indata, err := ioutil.ReadFile(inFile) // small files only
+    checkErr(err)
+    // fmt.Println("data len: ", len(indata))
+
+    kvArr := mapF(inFile, string(indata))
+    var kvArrByID = make([][]KeyValue, nReduce) // make a 2d dynamic array
+    for _, kv := range kvArr { // partition data based on id
+        id := uint32(ihash(kv.Key)) % uint32(nReduce)
+        kvArrByID[id] = append(kvArrByID[id], kv)
+    }
+    for r := 0; r < nReduce; r++ { // output data based on id
+        outfile, err := os.Create(reduceName(jobName, mapTaskNumber, r))
+        checkErr(err)
+        enc := json.NewEncoder(outfile)
+        for _, kv := range kvArrByID[r] {
+            err := enc.Encode(&kv)
+            checkErr(err)
+        }
+        outfile.Close()
+    }
+}
+
+func checkErr(err error) {
+    if err != nil {
+        log.Fatal(err)
+        panic(err)
+    }
 }
 
 func ihash(s string) uint32 {
