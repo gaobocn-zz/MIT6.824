@@ -1,6 +1,11 @@
 package mapreduce
 
-import "fmt"
+import (
+    "fmt"
+    "container/list"
+)
+
+var response chan int
 
 // schedule starts and waits for all tasks in the given phase (Map or Reduce).
 func (mr *Master) schedule(phase jobPhase) {
@@ -24,20 +29,45 @@ func (mr *Master) schedule(phase jobPhase) {
 	//
 	// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 	//
-    nfinished := 0
-    for nfinished < ntasks {
-        select {
-        case wname := <-mr.registerChannel:
-            doTaskArgs := &DoTaskArgs{JobName: mr.jobName, File: mr.files[nfinished],
-                Phase: phase, TaskNumber: nfinished, NumOtherPhase: nios}
-            nfinished++
-            go func() { // in fact main can exit before this, so we should probabily use waitgroup
-                ok := call(wname, "Worker.DoTask", doTaskArgs, new(struct{}))
-                if ok {
-                    mr.registerChannel <- wname
-                }
-            }()
-        }
+
+    // in fact you can use slice to achieve the same complexity
+    var itask int
+    taskList := list.New()
+    for i := 0; i < ntasks; i++ {
+        taskList.PushBack(i)
     }
+
+    nfinished := 0
+    // this doesn't work, my guess is taskList is not mutexed, so it may not be up-to-date
+    //for nfinished < ntasks {
+        //fmt.Println(nfinished, ntasks, taskList.Len())
+        for taskList.Len() > 0 {
+            select {
+            case wname := <-mr.registerChannel:
+                itask = taskList.Remove(taskList.Front()).(int)
+                doTaskArgs := &DoTaskArgs{JobName: mr.jobName, File: mr.files[itask],
+                    Phase: phase, TaskNumber: itask, NumOtherPhase: nios}
+                //fmt.Println("map task: ", itask)
+                go func() { // in fact main can exit before this, so we should probabily use waitgroup
+                    ok := call(wname, "Worker.DoTask", doTaskArgs, new(struct{}))
+                    if ok {
+                        nfinished++
+                        //mr.registerChannel <- wname
+                        mr.Register(&RegisterArgs{wname}, new(struct{}))
+                    } else {
+                        taskList.PushFront(itask)
+                    }
+                }()
+            }
+        }
+    //}
 	fmt.Printf("Schedule: %v phase done\n", phase)
+}
+
+func HandleResponse(r int, nfinished *int, taskArr []int) {
+    if r < 0 {
+        *nfinished++
+    } else {
+        taskArr = append(taskArr, r)
+    }
 }
